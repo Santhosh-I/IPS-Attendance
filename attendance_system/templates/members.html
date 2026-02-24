@@ -30,7 +30,12 @@
                 <td>{{ s.name }}</td>
                 <td>{{ s.roll_number or '-' }}</td>
                 <td>{{ s.rfid_uid }}</td>
-                <td><a href="/edit-member/{{ s.id }}" class="edit-link">Edit</a></td>
+                <td class="action-cell">
+                    <a href="/edit-member/{{ s.id }}" class="edit-link">Edit</a>
+                    <form method="POST" action="/delete-member/{{ s.id }}" style="display:inline" onsubmit="return confirm('Delete {{ s.name }}? This will also remove their attendance data.')">
+                        <button type="submit" class="delete-link">Delete</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

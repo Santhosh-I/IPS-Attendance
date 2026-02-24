@@ -375,6 +375,31 @@ tr:hover td {
     box-shadow: 0 0 10px rgba(0, 123, 255, 0.15);
 }
 
+.action-cell {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+}
+
+.delete-link {
+    color: #ff6b7a;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 14px;
+    background: rgba(220, 53, 69, 0.12);
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Inter', sans-serif;
+}
+
+.delete-link:hover {
+    background: rgba(220, 53, 69, 0.25);
+    box-shadow: 0 0 10px rgba(220, 53, 69, 0.15);
+}
+
 .add-member-container .status {
     margin-top: 20px;
     font-size: 15px;

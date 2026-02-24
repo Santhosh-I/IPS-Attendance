@@ -290,6 +290,19 @@ def members():
     return render_template("members.html", students=students)
 
 # -------------------------
+# DELETE MEMBER
+# -------------------------
+@app.route("/delete-member/<int:member_id>", methods=["POST"])
+def delete_member(member_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM attendance WHERE student_id = ?", (member_id,))
+    cursor.execute("DELETE FROM students WHERE id = ?", (member_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("members"))
+
+# -------------------------
 # EDIT MEMBER PAGE
 # -------------------------
 @app.route("/edit-member/<int:member_id>", methods=["GET", "POST"])
