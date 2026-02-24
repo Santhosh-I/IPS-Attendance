@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RFID Attendance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="tap-body">
+
+<div class="tap-container">
+    <h1>RFID Attendance System</h1>
+
+    <form method="POST">
+        <input type="text" name="rfid" id="rfidInput" autofocus placeholder="Tap Your Card">
+    </form>
+
+    {% if message %}
+        <div class="status {{ status }}">
+            {{ message }}
+        </div>
+    {% endif %}
+
+    <div class="clock" id="clock"></div>
+</div>
+
+<script>
+    // Live Clock
+    function updateClock() {
+        const now = new Date();
+        document.getElementById("clock").innerText = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Auto clear after 3 sec
+    setTimeout(() => {
+        window.location.href = "/";
+    }, 3000);
+</script>
+
+</body>
+</html>

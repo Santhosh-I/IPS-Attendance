@@ -1,0 +1,94 @@
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #111;
+    color: white;
+}
+
+/* TAP PAGE */
+.tap-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.tap-container {
+    text-align: center;
+}
+
+.tap-container h1 {
+    font-size: 40px;
+    margin-bottom: 30px;
+}
+
+.tap-container input {
+    padding: 15px;
+    width: 300px;
+    font-size: 20px;
+    text-align: center;
+    border: none;
+    outline: none;
+    border-radius: 5px;
+}
+
+.status {
+    margin-top: 20px;
+    font-size: 22px;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.status.in {
+    background-color: #28a745;
+}
+
+.status.out {
+    background-color: #007bff;
+}
+
+.status.error {
+    background-color: #dc3545;
+}
+
+.status.done {
+    background-color: #6c757d;
+}
+
+.clock {
+    margin-top: 30px;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+/* DASHBOARD */
+.dashboard-container {
+    padding: 40px;
+}
+
+.dashboard-container h1 {
+    margin-bottom: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #222;
+}
+
+th, td {
+    padding: 12px;
+    text-align: center;
+}
+
+th {
+    background: #333;
+}
+
+tr:nth-child(even) {
+    background: #1a1a1a;
+}
+
+tr:hover {
+    background: #444;
+}
