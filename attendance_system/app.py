@@ -278,6 +278,52 @@ def add_member():
 
     return render_template("add_member.html", message=message, status=status)
 
+# -------------------------
+# MEMBERS LIST PAGE
+# -------------------------
+@app.route("/members")
+def members():
+    conn = get_db()
+    cursor = conn.cursor()
+    students = cursor.execute("SELECT * FROM students ORDER BY name").fetchall()
+    conn.close()
+    return render_template("members.html", students=students)
+
+# -------------------------
+# EDIT MEMBER PAGE
+# -------------------------
+@app.route("/edit-member/<int:member_id>", methods=["GET", "POST"])
+def edit_member(member_id):
+    message = ""
+    status = ""
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        roll_number = request.form.get("roll_number", "").strip()
+
+        if not name:
+            message = "Name is required"
+            status = "error"
+        else:
+            cursor.execute(
+                "UPDATE students SET name = ?, roll_number = ? WHERE id = ?",
+                (name, roll_number, member_id),
+            )
+            conn.commit()
+            message = f"Member '{name}' updated successfully!"
+            status = "success"
+
+    student = cursor.execute("SELECT * FROM students WHERE id = ?", (member_id,)).fetchone()
+    conn.close()
+
+    if not student:
+        return redirect(url_for("members"))
+
+    return render_template("edit_member.html", student=student, message=message, status=status)
+
 if __name__ == "__main__":
     sync_to_sheets()
     app.run(debug=True)

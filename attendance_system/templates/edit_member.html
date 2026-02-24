@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Member</title>
+    <title>Edit Member</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="add-member-body">
 
-<a href="/dashboard" class="back-btn back-btn-top">&larr; Back</a>
+<a href="/members" class="back-btn back-btn-top">&larr; Back</a>
 
 <div class="add-member-container">
-    <h1>Add New Member</h1>
+    <h1>Edit Member</h1>
+    <p style="color: #555; font-size: 13px; margin: -15px 0 25px 0;">UID: {{ student.rfid_uid }}</p>
 
     <form method="POST">
-        <input type="text" name="name" placeholder="Name" required>
-        <input type="text" name="roll_number" placeholder="Roll Number">
-        <input type="text" name="rfid_uid" placeholder="RFID UID" required>
-        <button type="submit">Add Member</button>
+        <input type="text" name="name" placeholder="Name" value="{{ student.name }}" required>
+        <input type="text" name="roll_number" placeholder="Roll Number" value="{{ student.roll_number or '' }}">
+        <button type="submit">Update</button>
     </form>
 
     {% if message %}
@@ -24,8 +24,6 @@
             {{ message }}
         </div>
     {% endif %}
-
-    <a href="/members" class="view-members-link">View Registered Members &rarr;</a>
 </div>
 
 <footer class="footer">Developed by IPS Tech Community</footer>

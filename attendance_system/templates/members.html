@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Members</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <a href="/add-member" class="back-btn">&larr; Back</a>
+        <h1 style="margin: 0; font-size: 22px;">Registered Members</h1>
+        <div></div>
+    </div>
+
+    {% if students %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Roll Number</th>
+                <th>RFID UID</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in students %}
+            <tr>
+                <td>{{ s.name }}</td>
+                <td>{{ s.roll_number or '-' }}</td>
+                <td>{{ s.rfid_uid }}</td>
+                <td><a href="/edit-member/{{ s.id }}" class="edit-link">Edit</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="history-hint">No members registered yet</p>
+    {% endif %}
+</div>
+
+<footer class="footer">Developed by IPS Tech Community</footer>
+
+</body>
+</html>
