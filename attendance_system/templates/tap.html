@@ -3,43 +3,62 @@
 <head>
     <title>RFID Attendance</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="tap-body">
 
 <a href="/dashboard" class="dashboard-btn">Dashboard</a>
 
-<div class="tap-container">
-    <h1>RFID Attendance System</h1>
+<div class="tap-card">
+    <div class="tap-logo">
+        <img src="{{ url_for('static', filename='images/ips-logo.png') }}" alt="IPS Logo">
+    </div>
+
+    <h1 class="tap-title">RFID Attendance System</h1>
+    <p class="tap-subtitle">Place your card on the reader</p>
 
     <form method="POST">
-        <input type="text" name="rfid" id="rfidInput" autofocus placeholder="Tap Your Card">
+        <div class="input-wrapper">
+            <input type="text" name="rfid" id="rfidInput" autofocus placeholder="Tap Your Card" autocomplete="off">
+            <div class="input-glow"></div>
+        </div>
     </form>
 
     {% if message %}
-        <div class="status {{ status }}">
-            {{ message }}
+        <div class="status-card {{ status }}">
+            <span class="status-icon">
+                {% if status == 'in' %}&#10003;{% elif status == 'out' %}&#10148;{% elif status == 'error' %}&#10007;{% endif %}
+            </span>
+            <span>{{ message }}</span>
         </div>
     {% endif %}
 
+    <div class="divider"></div>
+
     <div class="clock" id="clock"></div>
+    <div class="date" id="date"></div>
 </div>
 
+<footer class="footer">Developed by IPS Tech Community</footer>
+
 <script>
-    // Live Clock
     function updateClock() {
         const now = new Date();
         document.getElementById("clock").innerText = now.toLocaleTimeString();
+        document.getElementById("date").innerText = now.toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Auto clear after 3 sec
+    // Auto clear only when a status message is shown
+    {% if message %}
     setTimeout(() => {
         window.location.href = "/";
     }, 3000);
+    {% endif %}
 </script>
-
-<footer class="footer">Developed by IPS Tech Community</footer>
 
 </body>
 </html>
