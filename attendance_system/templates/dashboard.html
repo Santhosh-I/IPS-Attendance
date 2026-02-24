@@ -7,7 +7,13 @@
 <body>
 
 <div class="dashboard-container">
-    <a href="/" class="back-btn">&larr; Back</a>
+    <div class="dashboard-header">
+        <a href="/" class="back-btn">&larr; Back</a>
+        <div class="dashboard-header-right">
+            <a href="/history" class="history-btn">History</a>
+            <a href="#" class="add-member-btn" onclick="showPasswordModal()">+ Add Member</a>
+        </div>
+    </div>
     <h1>Attendance Dashboard</h1>
 
     <table>
@@ -33,6 +39,67 @@
         </tbody>
     </table>
 </div>
+
+<!-- Password Modal -->
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal-box">
+        <h2>Admin Access</h2>
+        <p>Enter password to add a member</p>
+        <input type="password" id="adminPassword" placeholder="Password" autocomplete="off">
+        <div class="modal-error" id="modalError"></div>
+        <div class="modal-actions">
+            <button class="modal-btn cancel" onclick="closeModal()">Cancel</button>
+            <button class="modal-btn submit" onclick="submitPassword()">Enter</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function showPasswordModal() {
+    document.getElementById('passwordModal').classList.add('active');
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('modalError').textContent = '';
+    setTimeout(() => document.getElementById('adminPassword').focus(), 100);
+}
+
+function closeModal() {
+    document.getElementById('passwordModal').classList.remove('active');
+}
+
+function submitPassword() {
+    const password = document.getElementById('adminPassword').value;
+    if (!password) {
+        document.getElementById('modalError').textContent = 'Please enter a password';
+        return;
+    }
+
+    fetch('/verify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'password=' + encodeURIComponent(password)
+    }).then(response => {
+        if (response.redirected) {
+            // Check if redirected to add-member (success) or dashboard (fail)
+            if (response.url.includes('add-member')) {
+                window.location.href = response.url;
+            } else {
+                document.getElementById('modalError').textContent = 'Wrong password!';
+                document.getElementById('adminPassword').value = '';
+                document.getElementById('adminPassword').focus();
+            }
+        }
+    });
+}
+
+// Allow Enter key to submit
+document.addEventListener('keydown', function(e) {
+    const modal = document.getElementById('passwordModal');
+    if (modal.classList.contains('active')) {
+        if (e.key === 'Enter') submitPassword();
+        if (e.key === 'Escape') closeModal();
+    }
+});
+</script>
 
 </body>
 </html>

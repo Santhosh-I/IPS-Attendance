@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance History</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="history-container">
+    <div class="dashboard-header">
+        <a href="/dashboard" class="back-btn">&larr; Back</a>
+        <h1 style="margin: 0;">Attendance History</h1>
+        <div></div>
+    </div>
+
+    <div class="calendar-section">
+        <div class="calendar-nav">
+            <button class="cal-nav-btn" onclick="changeMonth(-1)">&larr;</button>
+            <span class="cal-month-label" id="monthLabel"></span>
+            <button class="cal-nav-btn" onclick="changeMonth(1)">&rarr;</button>
+        </div>
+        <div class="calendar-grid">
+            <div class="cal-day-header">Sun</div>
+            <div class="cal-day-header">Mon</div>
+            <div class="cal-day-header">Tue</div>
+            <div class="cal-day-header">Wed</div>
+            <div class="cal-day-header">Thu</div>
+            <div class="cal-day-header">Fri</div>
+            <div class="cal-day-header">Sat</div>
+            <div id="calendarDays"></div>
+        </div>
+    </div>
+
+    <div class="history-detail" id="historyDetail">
+        <p class="history-hint">Select a date from the calendar to view attendance</p>
+    </div>
+</div>
+
+<script>
+let currentYear, currentMonth;
+let attendanceDates = [];
+
+const monthNames = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+
+function init() {
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth();
+    fetch('/api/attendance-dates')
+        .then(r => r.json())
+        .then(dates => {
+            attendanceDates = dates;
+            renderCalendar();
+        });
+}
+
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    renderCalendar();
+}
+
+function renderCalendar() {
+    document.getElementById('monthLabel').textContent = monthNames[currentMonth] + ' ' + currentYear;
+
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const today = new Date();
+
+    const container = document.getElementById('calendarDays');
+    container.innerHTML = '';
+
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'cal-day empty';
+        container.appendChild(empty);
+    }
+
+    // Day cells
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = currentYear + '-' +
+            String(currentMonth + 1).padStart(2, '0') + '-' +
+            String(d).padStart(2, '0');
+
+        const cell = document.createElement('div');
+        cell.className = 'cal-day';
+        cell.textContent = d;
+
+        const hasData = attendanceDates.includes(dateStr);
+        if (hasData) {
+            cell.classList.add('has-data');
+            cell.onclick = () => loadDateAttendance(dateStr);
+        }
+
+        // Highlight today
+        if (d === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear()) {
+            cell.classList.add('today');
+        }
+
+        container.appendChild(cell);
+    }
+}
+
+function loadDateAttendance(date) {
+    // Remove active from all days
+    document.querySelectorAll('.cal-day').forEach(d => d.classList.remove('active'));
+    // Add active to clicked
+    document.querySelectorAll('.cal-day.has-data').forEach(d => {
+        const dateStr = currentYear + '-' +
+            String(currentMonth + 1).padStart(2, '0') + '-' +
+            String(parseInt(d.textContent)).padStart(2, '0');
+        if (dateStr === date) d.classList.add('active');
+    });
+
+    const detail = document.getElementById('historyDetail');
+    detail.innerHTML = '<p class="history-hint">Loading...</p>';
+
+    fetch('/api/attendance/' + date)
+        .then(r => r.json())
+        .then(data => {
+            if (data.length === 0) {
+                detail.innerHTML = '<p class="history-hint">No attendance records for ' + date + '</p>';
+                return;
+            }
+
+            let html = '<h2>Attendance on ' + date + '</h2>';
+            html += '<table><thead><tr>';
+            html += '<th>Name</th><th>Roll No</th><th>Entry #</th><th>In Time</th><th>Out Time</th>';
+            html += '</tr></thead><tbody>';
+
+            data.forEach(r => {
+                html += '<tr>';
+                html += '<td>' + r.name + '</td>';
+                html += '<td>' + r.roll_number + '</td>';
+                html += '<td>' + r.entry_number + '</td>';
+                html += '<td>' + r.in_time + '</td>';
+                html += '<td>' + r.out_time + '</td>';
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            detail.innerHTML = html;
+        });
+}
+
+init();
+</script>
+
+</body>
+</html>

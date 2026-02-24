@@ -101,6 +101,13 @@ body {
     background: #555;
 }
 
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
 .dashboard-container h1 {
     margin-bottom: 20px;
 }
@@ -195,9 +202,7 @@ tr:hover {
 }
 
 .add-member-btn {
-    position: absolute;
-    bottom: 20px;
-    padding: 10px 22px;
+    padding: 8px 18px;
     background: #333;
     color: white;
     text-decoration: none;
@@ -208,4 +213,232 @@ tr:hover {
 
 .add-member-btn:hover {
     background: #555;
+}
+
+/* PASSWORD MODAL */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-box {
+    background: #222;
+    padding: 30px 35px;
+    border-radius: 10px;
+    text-align: center;
+    min-width: 320px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.modal-box h2 {
+    margin: 0 0 5px 0;
+    font-size: 22px;
+}
+
+.modal-box p {
+    color: #aaa;
+    margin: 0 0 20px 0;
+    font-size: 14px;
+}
+
+.modal-box input {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    background: #333;
+    color: white;
+    text-align: center;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.modal-box input:focus {
+    box-shadow: 0 0 0 2px #007bff;
+}
+
+.modal-error {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 10px;
+    min-height: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 10px;
+    font-size: 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.modal-btn.cancel {
+    background: #444;
+    color: white;
+}
+
+.modal-btn.cancel:hover {
+    background: #555;
+}
+
+.modal-btn.submit {
+    background: #007bff;
+    color: white;
+}
+
+.modal-btn.submit:hover {
+    background: #0069d9;
+}
+
+/* DASHBOARD HEADER RIGHT */
+.dashboard-header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.history-btn {
+    padding: 8px 18px;
+    background: #333;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.history-btn:hover {
+    background: #555;
+}
+
+/* HISTORY PAGE */
+.history-container {
+    padding: 40px;
+}
+
+.calendar-section {
+    margin-top: 20px;
+    margin-bottom: 30px;
+}
+
+.calendar-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 15px;
+}
+
+.cal-nav-btn {
+    background: #333;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+}
+
+.cal-nav-btn:hover {
+    background: #555;
+}
+
+.cal-month-label {
+    font-size: 20px;
+    font-weight: bold;
+    min-width: 180px;
+    text-align: center;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.cal-day-header {
+    text-align: center;
+    font-weight: bold;
+    padding: 8px;
+    color: #aaa;
+    font-size: 13px;
+}
+
+#calendarDays {
+    display: contents;
+}
+
+.cal-day {
+    text-align: center;
+    padding: 10px 5px;
+    border-radius: 5px;
+    font-size: 14px;
+    color: #666;
+    background: #1a1a1a;
+    cursor: default;
+    transition: all 0.2s;
+}
+
+.cal-day.empty {
+    background: transparent;
+}
+
+.cal-day.has-data {
+    background: #1e3a1e;
+    color: #4caf50;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.cal-day.has-data:hover {
+    background: #2e5a2e;
+}
+
+.cal-day.today {
+    border: 2px solid #007bff;
+}
+
+.cal-day.active {
+    background: #007bff !important;
+    color: white !important;
+}
+
+.history-detail {
+    margin-top: 10px;
+}
+
+.history-detail h2 {
+    margin-bottom: 15px;
+    font-size: 20px;
+}
+
+.history-hint {
+    color: #888;
+    text-align: center;
+    font-size: 16px;
+    margin-top: 30px;
 }

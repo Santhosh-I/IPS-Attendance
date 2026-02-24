@@ -132,6 +132,64 @@ def dashboard():
     return render_template("dashboard.html", records=records)
 
 # -------------------------
+# HISTORY PAGE
+# -------------------------
+@app.route("/history")
+def history():
+    return render_template("history.html")
+
+# -------------------------
+# API: Attendance by date
+# -------------------------
+@app.route("/api/attendance/<date>")
+def attendance_by_date(date):
+    conn = get_db()
+    cursor = conn.cursor()
+    records = cursor.execute('''
+        SELECT students.name, students.roll_number, attendance.in_time, attendance.out_time, attendance.entry_number
+        FROM attendance
+        JOIN students ON students.id = attendance.student_id
+        WHERE attendance.date = ?
+        ORDER BY students.name, attendance.entry_number
+    ''', (date,)).fetchall()
+    conn.close()
+
+    data = []
+    for r in records:
+        data.append({
+            "name": r["name"],
+            "roll_number": r["roll_number"] or "-",
+            "in_time": r["in_time"],
+            "out_time": r["out_time"] or "-",
+            "entry_number": r["entry_number"]
+        })
+    return jsonify(data)
+
+# -------------------------
+# API: Dates with attendance
+# -------------------------
+@app.route("/api/attendance-dates")
+def attendance_dates():
+    conn = get_db()
+    cursor = conn.cursor()
+    rows = cursor.execute("SELECT DISTINCT date FROM attendance").fetchall()
+    conn.close()
+    return jsonify([r["date"] for r in rows])
+
+# -------------------------
+# VERIFY ADMIN PASSWORD
+# -------------------------
+ADMIN_PASSWORD = "ips@2026"
+
+@app.route("/verify-admin", methods=["POST"])
+def verify_admin():
+    password = request.form.get("password", "")
+    if password == ADMIN_PASSWORD:
+        return redirect(url_for("add_member"))
+    else:
+        return redirect(url_for("dashboard", error="wrong_password"))
+
+# -------------------------
 # ADD MEMBER PAGE
 # -------------------------
 @app.route("/add-member", methods=["GET", "POST"])
