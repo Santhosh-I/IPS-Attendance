@@ -8,9 +8,27 @@ body {
 /* TAP PAGE */
 .tap-body {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     height: 100vh;
+}
+
+.dashboard-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    padding: 8px 18px;
+    background: #333;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.dashboard-btn:hover {
+    background: #555;
 }
 
 .tap-container {
@@ -64,6 +82,23 @@ body {
 /* DASHBOARD */
 .dashboard-container {
     padding: 40px;
+    position: relative;
+}
+
+.back-btn {
+    display: inline-block;
+    padding: 8px 18px;
+    background: #333;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: background 0.2s;
+    margin-bottom: 10px;
+}
+
+.back-btn:hover {
+    background: #555;
 }
 
 .dashboard-container h1 {
@@ -91,4 +126,86 @@ tr:nth-child(even) {
 
 tr:hover {
     background: #444;
+}
+
+/* ADD MEMBER PAGE */
+.add-member-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.back-btn-top {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+}
+
+.add-member-container {
+    text-align: center;
+}
+
+.add-member-container h1 {
+    font-size: 32px;
+    margin-bottom: 25px;
+}
+
+.add-member-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.add-member-container input {
+    padding: 12px;
+    width: 300px;
+    font-size: 16px;
+    text-align: center;
+    border: none;
+    outline: none;
+    border-radius: 5px;
+    background: #222;
+    color: white;
+}
+
+.add-member-container input::placeholder {
+    color: #888;
+}
+
+.add-member-container button {
+    padding: 12px 30px;
+    font-size: 16px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.add-member-container button:hover {
+    background: #218838;
+}
+
+.status.success {
+    background-color: #28a745;
+}
+
+.add-member-btn {
+    position: absolute;
+    bottom: 20px;
+    padding: 10px 22px;
+    background: #333;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.add-member-btn:hover {
+    background: #555;
 }

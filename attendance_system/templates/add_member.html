@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Member</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="add-member-body">
+
+<a href="/" class="back-btn back-btn-top">&larr; Back</a>
+
+<div class="add-member-container">
+    <h1>Add New Member</h1>
+
+    <form method="POST">
+        <input type="text" name="name" placeholder="Name" required>
+        <input type="text" name="roll_number" placeholder="Roll Number">
+        <input type="text" name="rfid_uid" placeholder="RFID UID" required>
+        <button type="submit">Add Member</button>
+    </form>
+
+    {% if message %}
+        <div class="status {{ status }}">
+            {{ message }}
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

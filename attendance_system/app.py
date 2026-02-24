@@ -26,9 +26,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            roll_number TEXT,
             rfid_uid TEXT UNIQUE NOT NULL
         )
     ''')
+
+    # Add roll_number column if missing (migration for existing DBs)
+    student_columns = [row[1] for row in cursor.execute("PRAGMA table_info(students)").fetchall()]
+    if "roll_number" not in student_columns:
+        cursor.execute("ALTER TABLE students ADD COLUMN roll_number TEXT")
 
     # Create attendance table
     cursor.execute('''
@@ -47,19 +53,6 @@ def init_db():
     columns = [row[1] for row in cursor.execute("PRAGMA table_info(attendance)").fetchall()]
     if "entry_number" not in columns:
         cursor.execute("ALTER TABLE attendance ADD COLUMN entry_number INTEGER DEFAULT 1")
-
-    # Insert sample student only if not exists
-    cursor.execute(
-        "SELECT * FROM students WHERE rfid_uid = ?",
-        ("0000830245",)
-    )
-
-    if not cursor.fetchone():
-        cursor.execute(
-            "INSERT INTO students (name, rfid_uid) VALUES (?, ?)",
-            ("Santhosh", "0000830245")
-        )
-        print("Sample Student Registered!")
 
     conn.commit()
     conn.close()
@@ -84,7 +77,7 @@ def tap():
         ).fetchone()
 
         if not student:
-            message = "Card Not Registered"
+            message = f"ID Not Registered: {uid}"
             status = "error"
         else:
             today = datetime.now().strftime("%Y-%m-%d")
@@ -137,6 +130,41 @@ def dashboard():
 
     conn.close()
     return render_template("dashboard.html", records=records)
+
+# -------------------------
+# ADD MEMBER PAGE
+# -------------------------
+@app.route("/add-member", methods=["GET", "POST"])
+def add_member():
+    message = ""
+    status = ""
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        roll_number = request.form.get("roll_number", "").strip()
+        rfid_uid = request.form.get("rfid_uid", "").strip()
+
+        if not name or not rfid_uid:
+            message = "Name and UID are required"
+            status = "error"
+        else:
+            conn = get_db()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "INSERT INTO students (name, roll_number, rfid_uid) VALUES (?, ?, ?)",
+                    (name, roll_number, rfid_uid),
+                )
+                conn.commit()
+                message = f"Member '{name}' added successfully!"
+                status = "success"
+            except sqlite3.IntegrityError:
+                message = "This UID is already registered"
+                status = "error"
+            finally:
+                conn.close()
+
+    return render_template("add_member.html", message=message, status=status)
 
 if __name__ == "__main__":
     app.run(debug=True)
