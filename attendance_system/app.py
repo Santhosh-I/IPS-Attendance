@@ -165,7 +165,7 @@ def tap():
 
         conn.close()
 
-    return render_template("tap.html", message=message, status=status)
+    return render_template("index.html", message=message, status=status)
 
 # -------------------------
 # DASHBOARD PAGE
