@@ -1,15 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import sqlite3
 from datetime import datetime
-import gspread
-from google.oauth2.service_account import Credentials
+import json
 import os
-from mangum import Mangum
 
 app = Flask(__name__)
 
-# Use /tmp for serverless (Vercel/Lambda), local path otherwise
-if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+# Use /tmp for serverless (Vercel), local path otherwise
+if os.environ.get("VERCEL"):
     DATABASE = "/tmp/database.db"
 else:
     DATABASE = os.path.join(os.path.dirname(__file__), "database.db")
@@ -58,23 +56,43 @@ init_db()
 # -------------------------
 # Google Sheets Config
 # -------------------------
-SHEET_ID = "1lUsXnIVtTca18X43AtJsfV6MrJCihuXA1Q3Ddv9k9bs"
-CREDS_FILE = os.path.join(os.path.dirname(__file__), "credentials.json")
-
 def get_sheet():
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError:
+        print("gspread/google-auth not installed, skipping sheets sync")
+        return None
+
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
 
-    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scopes)
+    # On Vercel: use env vars; locally: use credentials.json file
+    creds_json = os.environ.get("GOOGLE_CREDS_JSON")
+    sheet_id = os.environ.get("SHEET_ID", "1lUsXnIVtTca18X43AtJsfV6MrJCihuXA1Q3Ddv9k9bs")
+
+    if creds_json:
+        creds_data = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
+    else:
+        creds_file = os.path.join(os.path.dirname(__file__), "credentials.json")
+        if not os.path.exists(creds_file):
+            print("No credentials found, skipping sheets sync")
+            return None
+        creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
+
     gc = gspread.authorize(creds)
-    sh = gc.open_by_key(SHEET_ID)
+    sh = gc.open_by_key(sheet_id)
     return sh.sheet1
 
 def sync_to_sheets():
     try:
         ws = get_sheet()
+        if ws is None:
+            return
+
         conn = get_db()
         cursor = conn.cursor()
 
@@ -161,6 +179,26 @@ def tap():
 
     return render_template("index.html", message=message, status=status)
 
+@app.route("/dashboard")
+def dashboard():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    records = cursor.execute('''
+        SELECT students.name, attendance.date,
+               attendance.entry_number, attendance.in_time, attendance.out_time
+        FROM attendance
+        JOIN students ON students.id = attendance.student_id
+        ORDER BY attendance.date DESC, attendance.id DESC
+    ''').fetchall()
+
+    conn.close()
+    return render_template("dashboard.html", records=records)
+
+@app.route("/history")
+def history():
+    return render_template("history.html")
+
 @app.route("/api/attendance/<date>")
 def attendance_by_date(date):
     conn = get_db()
@@ -189,10 +227,98 @@ def attendance_by_date(date):
 
     return jsonify(data)
 
-# -------------------------
-# Serverless Handler
-# -------------------------
-handler = Mangum(app)
+@app.route("/api/attendance-dates")
+def attendance_dates():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    dates = cursor.execute(
+        "SELECT DISTINCT date FROM attendance ORDER BY date"
+    ).fetchall()
+
+    conn.close()
+    return jsonify([d["date"] for d in dates])
+
+@app.route("/verify-admin", methods=["POST"])
+def verify_admin():
+    password = request.form.get("password", "")
+    if password == "ips@2026":
+        return redirect("/add-member")
+    return redirect("/dashboard")
+
+@app.route("/add-member", methods=["GET", "POST"])
+def add_member():
+    message = ""
+    status = ""
+
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        roll_number = request.form.get("roll_number", "").strip()
+        rfid_uid = request.form["rfid_uid"].strip()
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "INSERT INTO students (name, roll_number, rfid_uid) VALUES (?, ?, ?)",
+                (name, roll_number, rfid_uid),
+            )
+            conn.commit()
+            message = f"{name} added successfully!"
+            status = "in"
+        except sqlite3.IntegrityError:
+            message = "This RFID UID is already registered!"
+            status = "error"
+        finally:
+            conn.close()
+
+    return render_template("add_member.html", message=message, status=status)
+
+@app.route("/members")
+def members():
+    conn = get_db()
+    cursor = conn.cursor()
+    students = cursor.execute("SELECT * FROM students ORDER BY name").fetchall()
+    conn.close()
+    return render_template("members.html", students=students)
+
+@app.route("/edit-member/<int:id>", methods=["GET", "POST"])
+def edit_member(id):
+    conn = get_db()
+    cursor = conn.cursor()
+    message = ""
+    status = ""
+
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        roll_number = request.form.get("roll_number", "").strip()
+
+        cursor.execute(
+            "UPDATE students SET name = ?, roll_number = ? WHERE id = ?",
+            (name, roll_number, id),
+        )
+        conn.commit()
+        message = "Updated successfully!"
+        status = "in"
+
+    student = cursor.execute("SELECT * FROM students WHERE id = ?", (id,)).fetchone()
+    conn.close()
+
+    if not student:
+        return redirect("/members")
+
+    return render_template("edit_member.html", student=student, message=message, status=status)
+
+@app.route("/delete-member/<int:id>", methods=["POST"])
+def delete_member(id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM attendance WHERE student_id = ?", (id,))
+    cursor.execute("DELETE FROM students WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return redirect("/members")
 
 # Local testing
 if __name__ == "__main__":
