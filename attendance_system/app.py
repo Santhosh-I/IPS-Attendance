@@ -1,33 +1,49 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-import sqlite3
-from datetime import datetime
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from datetime import datetime, date, time
 import os
 
 app = Flask(__name__)
 
+DATABASE_URL = "postgresql://neondb_owner:npg_knF6Qrz1Ipcl@ep-sweet-term-ai5vr4v2-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
+
 @app.template_filter('to12hr')
-def to12hr_filter(time_str):
-    if not time_str:
+def to12hr_filter(value):
+    if not value:
         return '-'
+    if isinstance(value, time):
+        return value.strftime('%I:%M:%S %p')
     try:
-        t = datetime.strptime(time_str, '%H:%M:%S')
+        t = datetime.strptime(str(value), '%H:%M:%S')
         return t.strftime('%I:%M:%S %p')
     except ValueError:
-        return time_str
+        return str(value)
 
-# Use /tmp for serverless (Vercel), local path otherwise
-if os.environ.get("VERCEL"):
-    DATABASE = "/tmp/database.db"
-else:
-    DATABASE = os.path.join(os.path.dirname(__file__), "database.db")
+def _time_str(value):
+    """Convert time/datetime.time to string for JSON responses."""
+    if value is None:
+        return '-'
+    if isinstance(value, time):
+        return value.strftime('%H:%M:%S')
+    return str(value)
+
+def _date_str(value):
+    """Convert date/datetime.date to string for JSON responses."""
+    if value is None:
+        return ''
+    if isinstance(value, date):
+        return value.strftime('%Y-%m-%d')
+    return str(value)
 
 # -------------------------
 # Database Connection
 # -------------------------
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor
+    )
 
 # -------------------------
 # Initialize Database
@@ -38,7 +54,7 @@ def init_db():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             roll_number TEXT,
             rfid_uid TEXT UNIQUE NOT NULL
@@ -47,13 +63,12 @@ def init_db():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id INTEGER,
-            date TEXT,
-            in_time TEXT,
-            out_time TEXT,
-            entry_number INTEGER DEFAULT 1,
-            FOREIGN KEY(student_id) REFERENCES students(id)
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES students(id),
+            date DATE,
+            in_time TIME,
+            out_time TIME,
+            entry_number INTEGER DEFAULT 1
         )
     ''')
 
@@ -76,10 +91,11 @@ def tap():
         conn = get_db()
         cursor = conn.cursor()
 
-        student = cursor.execute(
-            "SELECT * FROM students WHERE rfid_uid = ?",
+        cursor.execute(
+            "SELECT * FROM students WHERE rfid_uid = %s",
             (uid,)
-        ).fetchone()
+        )
+        student = cursor.fetchone()
 
         if not student:
             message = "ID Not Registered"
@@ -88,23 +104,24 @@ def tap():
             today = datetime.now().strftime("%Y-%m-%d")
             current_time = datetime.now().strftime("%H:%M:%S")
 
-            latest = cursor.execute(
-                "SELECT * FROM attendance WHERE student_id = ? AND date = ? ORDER BY id DESC LIMIT 1",
+            cursor.execute(
+                "SELECT * FROM attendance WHERE student_id = %s AND date = %s ORDER BY id DESC LIMIT 1",
                 (student["id"], today),
-            ).fetchone()
+            )
+            latest = cursor.fetchone()
 
             if not latest or (latest["in_time"] and latest["out_time"]):
                 entry_num = (latest["entry_number"] + 1) if latest else 1
 
                 cursor.execute(
-                    "INSERT INTO attendance (student_id, date, in_time, entry_number) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO attendance (student_id, date, in_time, entry_number) VALUES (%s, %s, %s, %s)",
                     (student["id"], today, current_time, entry_num),
                 )
                 message = f"IN Time Marked (Entry #{entry_num})"
                 status = "in"
             else:
                 cursor.execute(
-                    "UPDATE attendance SET out_time = ? WHERE id = ?",
+                    "UPDATE attendance SET out_time = %s WHERE id = %s",
                     (current_time, latest["id"]),
                 )
                 message = "OUT Time Marked"
@@ -121,13 +138,14 @@ def dashboard():
     conn = get_db()
     cursor = conn.cursor()
 
-    records = cursor.execute('''
+    cursor.execute('''
         SELECT students.name, attendance.date,
                attendance.entry_number, attendance.in_time, attendance.out_time
         FROM attendance
         JOIN students ON students.id = attendance.student_id
         ORDER BY attendance.date DESC, attendance.id DESC
-    ''').fetchall()
+    ''')
+    records = cursor.fetchall()
 
     conn.close()
     return render_template("dashboard.html", records=records)
@@ -141,14 +159,15 @@ def attendance_by_date(date):
     conn = get_db()
     cursor = conn.cursor()
 
-    records = cursor.execute('''
+    cursor.execute('''
         SELECT students.name, students.roll_number,
                attendance.in_time, attendance.out_time,
                attendance.entry_number
         FROM attendance
         JOIN students ON students.id = attendance.student_id
-        WHERE attendance.date = ?
-    ''', (date,)).fetchall()
+        WHERE attendance.date = %s
+    ''', (date,))
+    records = cursor.fetchall()
 
     conn.close()
 
@@ -157,8 +176,8 @@ def attendance_by_date(date):
         data.append({
             "name": r["name"],
             "roll_number": r["roll_number"] or "-",
-            "in_time": r["in_time"],
-            "out_time": r["out_time"] or "-",
+            "in_time": _time_str(r["in_time"]),
+            "out_time": _time_str(r["out_time"]),
             "entry_number": r["entry_number"]
         })
 
@@ -169,12 +188,13 @@ def attendance_dates():
     conn = get_db()
     cursor = conn.cursor()
 
-    dates = cursor.execute(
+    cursor.execute(
         "SELECT DISTINCT date FROM attendance ORDER BY date"
-    ).fetchall()
+    )
+    dates = cursor.fetchall()
 
     conn.close()
-    return jsonify([d["date"] for d in dates])
+    return jsonify([_date_str(d["date"]) for d in dates])
 
 @app.route("/verify-admin", methods=["POST"])
 def verify_admin():
@@ -198,13 +218,14 @@ def add_member():
 
         try:
             cursor.execute(
-                "INSERT INTO students (name, roll_number, rfid_uid) VALUES (?, ?, ?)",
+                "INSERT INTO students (name, roll_number, rfid_uid) VALUES (%s, %s, %s)",
                 (name, roll_number, rfid_uid),
             )
             conn.commit()
             message = f"{name} added successfully!"
             status = "in"
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
+            conn.rollback()
             message = "This RFID UID is already registered!"
             status = "error"
         finally:
@@ -216,7 +237,8 @@ def add_member():
 def members():
     conn = get_db()
     cursor = conn.cursor()
-    students = cursor.execute("SELECT * FROM students ORDER BY name").fetchall()
+    cursor.execute("SELECT * FROM students ORDER BY name")
+    students = cursor.fetchall()
     conn.close()
     return render_template("members.html", students=students)
 
@@ -232,14 +254,15 @@ def edit_member(id):
         roll_number = request.form.get("roll_number", "").strip()
 
         cursor.execute(
-            "UPDATE students SET name = ?, roll_number = ? WHERE id = ?",
+            "UPDATE students SET name = %s, roll_number = %s WHERE id = %s",
             (name, roll_number, id),
         )
         conn.commit()
         message = "Updated successfully!"
         status = "in"
 
-    student = cursor.execute("SELECT * FROM students WHERE id = ?", (id,)).fetchone()
+    cursor.execute("SELECT * FROM students WHERE id = %s", (id,))
+    student = cursor.fetchone()
     conn.close()
 
     if not student:
@@ -251,8 +274,8 @@ def edit_member(id):
 def delete_member(id):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM attendance WHERE student_id = ?", (id,))
-    cursor.execute("DELETE FROM students WHERE id = ?", (id,))
+    cursor.execute("DELETE FROM attendance WHERE student_id = %s", (id,))
+    cursor.execute("DELETE FROM students WHERE id = %s", (id,))
     conn.commit()
     conn.close()
     return redirect("/members")
