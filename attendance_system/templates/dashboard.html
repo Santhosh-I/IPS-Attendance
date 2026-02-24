@@ -33,8 +33,8 @@
                 <td>{{ record.name }}</td>
                 <td>{{ record.date }}</td>
                 <td>{{ record.entry_number }}</td>
-                <td>{{ record.in_time }}</td>
-                <td>{{ record.out_time if record.out_time else '-' }}</td>
+                <td>{{ record.in_time | to12hr }}</td>
+                <td>{{ record.out_time | to12hr }}</td>
             </tr>
             {% endfor %}
         </tbody>

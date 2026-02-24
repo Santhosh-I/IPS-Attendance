@@ -44,6 +44,17 @@ let attendanceDates = [];
 const monthNames = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"];
 
+function to12hr(timeStr) {
+    if (!timeStr || timeStr === '-') return '-';
+    const parts = timeStr.split(':');
+    let h = parseInt(parts[0]);
+    const m = parts[1];
+    const s = parts[2] || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return String(h).padStart(2, '0') + ':' + m + ':' + s + ' ' + ampm;
+}
+
 function init() {
     const now = new Date();
     currentYear = now.getFullYear();
@@ -137,8 +148,8 @@ function loadDateAttendance(date) {
                 html += '<td>' + r.name + '</td>';
                 html += '<td>' + r.roll_number + '</td>';
                 html += '<td>' + r.entry_number + '</td>';
-                html += '<td>' + r.in_time + '</td>';
-                html += '<td>' + r.out_time + '</td>';
+                html += '<td>' + to12hr(r.in_time) + '</td>';
+                html += '<td>' + to12hr(r.out_time) + '</td>';
                 html += '</tr>';
             });
 
