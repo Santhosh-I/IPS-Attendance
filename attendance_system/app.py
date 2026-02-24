@@ -1,10 +1,62 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import sqlite3
 from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
+import os
 
 app = Flask(__name__)
 
 DATABASE = "database.db"
+
+# -------------------------
+# Google Sheets Config
+# -------------------------
+SHEET_ID = "1lUsXnIVtTca18X43AtJsfV6MrJCihuXA1Q3Ddv9k9bs"
+CREDS_FILE = os.path.join(os.path.dirname(__file__), "credentials.json")
+
+def get_sheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scopes)
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(SHEET_ID)
+    return sh.sheet1
+
+def sync_to_sheets():
+    try:
+        ws = get_sheet()
+        conn = get_db()
+        cursor = conn.cursor()
+        records = cursor.execute('''
+            SELECT students.name, students.roll_number, students.rfid_uid,
+                   attendance.date, attendance.in_time, attendance.out_time, attendance.entry_number
+            FROM attendance
+            JOIN students ON students.id = attendance.student_id
+            ORDER BY attendance.date DESC, attendance.entry_number DESC
+        ''').fetchall()
+        conn.close()
+
+        rows = [["Date", "Name", "Roll No", "RFID UID", "Entry #", "In Time", "Out Time"]]
+        for r in records:
+            rows.append([
+                r["date"],
+                r["name"],
+                r["roll_number"] or "-",
+                r["rfid_uid"],
+                r["entry_number"],
+                r["in_time"],
+                r["out_time"] if r["out_time"] else "\u2014",
+            ])
+
+        ws.clear()
+        ws.update(values=rows, range_name=f"A1:G{len(rows)}")
+        ws.format("A1:G1", {"textFormat": {"bold": True}})
+        print(f"[Sheets] Synced {len(records)} records to Google Sheets")
+    except Exception as e:
+        print(f"[Sheets] Sync error: {e}")
 
 # -------------------------
 # Database Connection
@@ -99,6 +151,7 @@ def tap():
                 conn.commit()
                 message = f"IN Time Marked for {student['name']} (Entry #{entry_num})"
                 status = "in"
+                sync_to_sheets()
             elif latest["in_time"] and not latest["out_time"]:
                 # Last record has IN but no OUT → mark OUT
                 cursor.execute(
@@ -108,6 +161,7 @@ def tap():
                 conn.commit()
                 message = f"OUT Time Marked for {student['name']} (Entry #{latest['entry_number']})"
                 status = "out"
+                sync_to_sheets()
 
         conn.close()
 
@@ -225,4 +279,5 @@ def add_member():
     return render_template("add_member.html", message=message, status=status)
 
 if __name__ == "__main__":
+    sync_to_sheets()
     app.run(debug=True)
