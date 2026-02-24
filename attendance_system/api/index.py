@@ -4,27 +4,19 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import os
-from mangum import Mangum
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="../templates")
 
-# Use /tmp for serverless (Vercel/Lambda), local path otherwise
-if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-    DATABASE = "/tmp/database.db"
-else:
-    DATABASE = os.path.join(os.path.dirname(__file__), "database.db")
+DATABASE = "/tmp/database.db"   # Vercel writable temp folder
 
 # -------------------------
-# Database Connection
+# Database
 # -------------------------
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
-# -------------------------
-# Initialize Database
-# -------------------------
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
@@ -58,8 +50,8 @@ init_db()
 # -------------------------
 # Google Sheets Config
 # -------------------------
-SHEET_ID = "1lUsXnIVtTca18X43AtJsfV6MrJCihuXA1Q3Ddv9k9bs"
-CREDS_FILE = os.path.join(os.path.dirname(__file__), "credentials.json")
+SHEET_ID = os.environ.get("SHEET_ID")
+CREDS_JSON = os.environ.get("GOOGLE_CREDS_JSON")
 
 def get_sheet():
     scopes = [
@@ -67,7 +59,11 @@ def get_sheet():
         "https://www.googleapis.com/auth/drive",
     ]
 
-    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scopes)
+    creds = Credentials.from_service_account_info(
+        eval(GOOGLE_CREDS_JSON),
+        scopes=scopes
+    )
+
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(SHEET_ID)
     return sh.sheet1
@@ -116,7 +112,6 @@ def tap():
 
     if request.method == "POST":
         uid = request.form["rfid"].strip()
-
         conn = get_db()
         cursor = conn.cursor()
 
@@ -139,7 +134,6 @@ def tap():
 
             if not latest or (latest["in_time"] and latest["out_time"]):
                 entry_num = (latest["entry_number"] + 1) if latest else 1
-
                 cursor.execute(
                     "INSERT INTO attendance (student_id, date, in_time, entry_number) VALUES (?, ?, ?, ?)",
                     (student["id"], today, current_time, entry_num),
@@ -177,23 +171,17 @@ def attendance_by_date(date):
 
     conn.close()
 
-    data = []
-    for r in records:
-        data.append({
+    return jsonify([
+        {
             "name": r["name"],
             "roll_number": r["roll_number"] or "-",
             "in_time": r["in_time"],
             "out_time": r["out_time"] or "-",
             "entry_number": r["entry_number"]
-        })
+        }
+        for r in records
+    ])
 
-    return jsonify(data)
-
-# -------------------------
-# Serverless Handler
-# -------------------------
-handler = Mangum(app)
-
-# Local testing
-if __name__ == "__main__":
-    app.run(debug=True)
+# Required by Vercel
+def handler(request, context):
+    return app(request.environ, start_response)
