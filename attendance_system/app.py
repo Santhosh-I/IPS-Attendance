@@ -1,8 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone, timedelta
 import os
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
 
 app = Flask(__name__)
 
@@ -101,8 +107,8 @@ def tap():
             message = "ID Not Registered"
             status = "error"
         else:
-            today = datetime.now().strftime("%Y-%m-%d")
-            current_time = datetime.now().strftime("%H:%M:%S")
+            today = datetime.now(IST).strftime("%Y-%m-%d")
+            current_time = datetime.now(IST).strftime("%H:%M:%S")
 
             cursor.execute(
                 "SELECT * FROM attendance WHERE student_id = %s AND date = %s ORDER BY id DESC LIMIT 1",
@@ -117,14 +123,14 @@ def tap():
                     "INSERT INTO attendance (student_id, date, in_time, entry_number) VALUES (%s, %s, %s, %s)",
                     (student["id"], today, current_time, entry_num),
                 )
-                message = f"IN Time Marked (Entry #{entry_num})"
+                message = f"{student['name']} — IN Time Marked (Entry #{entry_num})"
                 status = "in"
             else:
                 cursor.execute(
                     "UPDATE attendance SET out_time = %s WHERE id = %s",
                     (current_time, latest["id"]),
                 )
-                message = "OUT Time Marked"
+                message = f"{student['name']} — OUT Time Marked"
                 status = "out"
 
             conn.commit()
@@ -279,6 +285,137 @@ def delete_member(id):
     conn.commit()
     conn.close()
     return redirect("/members")
+
+# -------------------------
+# Excel Download Routes
+# -------------------------
+def _time_12hr(value):
+    """Convert time to 12hr string for Excel."""
+    if not value:
+        return '-'
+    if isinstance(value, time):
+        return value.strftime('%I:%M:%S %p')
+    try:
+        t = datetime.strptime(str(value), '%H:%M:%S')
+        return t.strftime('%I:%M:%S %p')
+    except ValueError:
+        return str(value)
+
+def _style_excel(ws, headers):
+    """Apply styling to an Excel worksheet."""
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    header_align = Alignment(horizontal='center', vertical='center')
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, max_col=len(headers)):
+        for cell in row:
+            cell.alignment = Alignment(horizontal='center')
+            cell.border = thin_border
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = max_len + 4
+
+@app.route('/download/attendance')
+def download_attendance():
+    """Download attendance as Excel with each date on a separate sheet."""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT DISTINCT date FROM attendance ORDER BY date DESC')
+    dates = [row['date'] for row in cursor.fetchall()]
+
+    wb = Workbook()
+    wb.remove(wb.active)  # remove default sheet
+
+    headers = ['Name', 'Roll Number', 'Entry #', 'In Time', 'Out Time']
+
+    for d in dates:
+        date_str = d.strftime('%Y-%m-%d') if isinstance(d, date) else str(d)
+        sheet_name = date_str[:31]  # Excel sheet name max 31 chars
+        ws = wb.create_sheet(title=sheet_name)
+
+        cursor.execute('''
+            SELECT students.name, students.roll_number,
+                   attendance.entry_number, attendance.in_time, attendance.out_time
+            FROM attendance
+            JOIN students ON students.id = attendance.student_id
+            WHERE attendance.date = %s
+            ORDER BY attendance.id
+        ''', (d,))
+        records = cursor.fetchall()
+
+        for col_num, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col_num, value=header)
+
+        for row_num, r in enumerate(records, 2):
+            ws.cell(row=row_num, column=1, value=r['name'])
+            ws.cell(row=row_num, column=2, value=r['roll_number'] or '-')
+            ws.cell(row=row_num, column=3, value=r['entry_number'])
+            ws.cell(row=row_num, column=4, value=_time_12hr(r['in_time']))
+            ws.cell(row=row_num, column=5, value=_time_12hr(r['out_time']))
+
+        _style_excel(ws, headers)
+
+    conn.close()
+
+    if not dates:
+        ws = wb.create_sheet(title='No Data')
+        ws.cell(row=1, column=1, value='No attendance records found')
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='attendance.xlsx'
+    )
+
+@app.route('/download/members')
+def download_members():
+    """Download members list as Excel."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT name, roll_number, rfid_uid FROM students ORDER BY name')
+    students = cursor.fetchall()
+    conn.close()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Members'
+
+    headers = ['Name', 'Roll Number', 'RFID UID']
+    for col_num, header in enumerate(headers, 1):
+        ws.cell(row=1, column=col_num, value=header)
+
+    for row_num, s in enumerate(students, 2):
+        ws.cell(row=row_num, column=1, value=s['name'])
+        ws.cell(row=row_num, column=2, value=s['roll_number'] or '-')
+        ws.cell(row=row_num, column=3, value=s['rfid_uid'])
+
+    _style_excel(ws, headers)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='members.xlsx'
+    )
 
 # Local testing
 if __name__ == "__main__":
