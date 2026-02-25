@@ -6,7 +6,7 @@ import os
 
 app = Flask(__name__)
 
-DATABASE_URL = "postgresql://neondb_owner:npg_knF6Qrz1Ipcl@ep-sweet-term-ai5vr4v2-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL = "postgresql://postgres.xuirqkdtrvkhjirrnmla:ipsattendance0000830245@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
 
 @app.template_filter('to12hr')
 def to12hr_filter(value):
