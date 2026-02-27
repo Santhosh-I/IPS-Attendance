@@ -86,58 +86,57 @@ init_db()
 # -------------------------
 # Routes
 # -------------------------
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
 def tap():
-    message = ""
-    status = ""
+    return render_template("index.html")
 
-    if request.method == "POST":
-        uid = request.form["rfid"].strip()
+@app.route("/api/tap", methods=["POST"])
+def api_tap():
+    uid = request.form.get("rfid", "").strip()
+    if not uid:
+        return jsonify({"message": "No card detected", "status": "error"})
 
-        conn = get_db()
-        cursor = conn.cursor()
+    conn = get_db()
+    cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT * FROM students WHERE rfid_uid = %s",
-            (uid,)
-        )
-        student = cursor.fetchone()
+    cursor.execute(
+        "SELECT * FROM students WHERE rfid_uid = %s",
+        (uid,)
+    )
+    student = cursor.fetchone()
 
-        if not student:
-            message = "ID Not Registered"
-            status = "error"
-        else:
-            today = datetime.now(IST).strftime("%Y-%m-%d")
-            current_time = datetime.now(IST).strftime("%H:%M:%S")
-
-            cursor.execute(
-                "SELECT * FROM attendance WHERE student_id = %s AND date = %s ORDER BY id DESC LIMIT 1",
-                (student["id"], today),
-            )
-            latest = cursor.fetchone()
-
-            if not latest or (latest["in_time"] and latest["out_time"]):
-                entry_num = (latest["entry_number"] + 1) if latest else 1
-
-                cursor.execute(
-                    "INSERT INTO attendance (student_id, date, in_time, entry_number) VALUES (%s, %s, %s, %s)",
-                    (student["id"], today, current_time, entry_num),
-                )
-                message = f"{student['name']} — IN Time Marked (Entry #{entry_num})"
-                status = "in"
-            else:
-                cursor.execute(
-                    "UPDATE attendance SET out_time = %s WHERE id = %s",
-                    (current_time, latest["id"]),
-                )
-                message = f"{student['name']} — OUT Time Marked"
-                status = "out"
-
-            conn.commit()
-
+    if not student:
         conn.close()
+        return jsonify({"message": "ID Not Registered", "status": "error"})
 
-    return render_template("index.html", message=message, status=status)
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    current_time = datetime.now(IST).strftime("%H:%M:%S")
+
+    cursor.execute(
+        "SELECT * FROM attendance WHERE student_id = %s AND date = %s ORDER BY id DESC LIMIT 1",
+        (student["id"], today),
+    )
+    latest = cursor.fetchone()
+
+    if not latest or (latest["in_time"] and latest["out_time"]):
+        entry_num = (latest["entry_number"] + 1) if latest else 1
+        cursor.execute(
+            "INSERT INTO attendance (student_id, date, in_time, entry_number) VALUES (%s, %s, %s, %s)",
+            (student["id"], today, current_time, entry_num),
+        )
+        message = f"{student['name']} — IN Time Marked (Entry #{entry_num})"
+        status = "in"
+    else:
+        cursor.execute(
+            "UPDATE attendance SET out_time = %s WHERE id = %s",
+            (current_time, latest["id"]),
+        )
+        message = f"{student['name']} — OUT Time Marked"
+        status = "out"
+
+    conn.commit()
+    conn.close()
+    return jsonify({"message": message, "status": status})
 
 @app.route("/dashboard")
 def dashboard():
@@ -153,8 +152,14 @@ def dashboard():
     ''')
     records = cursor.fetchall()
 
+    today = datetime.now().strftime("%Y-%m-%d")
+    cursor.execute('''
+        SELECT COUNT(DISTINCT student_id) AS cnt FROM attendance WHERE date = %s
+    ''', (today,))
+    today_count = cursor.fetchone()['cnt']
+
     conn.close()
-    return render_template("dashboard.html", records=records)
+    return render_template("dashboard.html", records=records, today_count=today_count)
 
 @app.route("/history")
 def history():

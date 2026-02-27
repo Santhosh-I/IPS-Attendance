@@ -41,6 +41,7 @@
 <script>
 let currentYear, currentMonth;
 let attendanceDates = [];
+let currentDateIndex = 0;
 
 const monthNames = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"];
@@ -65,6 +66,16 @@ function init() {
         .then(dates => {
             attendanceDates = dates;
             renderCalendar();
+            // Auto-load the first (earliest) date
+            if (attendanceDates.length > 0) {
+                currentDateIndex = 0;
+                loadDateAttendance(attendanceDates[0]);
+                // Navigate calendar to that date's month
+                const parts = attendanceDates[0].split('-');
+                currentYear = parseInt(parts[0]);
+                currentMonth = parseInt(parts[1]) - 1;
+                renderCalendar();
+            }
         });
 }
 
@@ -105,7 +116,10 @@ function renderCalendar() {
         const hasData = attendanceDates.includes(dateStr);
         if (hasData) {
             cell.classList.add('has-data');
-            cell.onclick = () => loadDateAttendance(dateStr);
+            cell.onclick = () => {
+                currentDateIndex = attendanceDates.indexOf(dateStr);
+                loadDateAttendance(dateStr);
+            };
         }
 
         // Highlight today
@@ -113,14 +127,33 @@ function renderCalendar() {
             cell.classList.add('today');
         }
 
+        // Highlight currently viewed date
+        if (attendanceDates[currentDateIndex] === dateStr) {
+            cell.classList.add('active');
+        }
+
         container.appendChild(cell);
     }
 }
 
+function navigateDay(delta) {
+    const newIndex = currentDateIndex + delta;
+    if (newIndex < 0 || newIndex >= attendanceDates.length) return;
+    currentDateIndex = newIndex;
+    const dateStr = attendanceDates[currentDateIndex];
+    // Update calendar to show that month
+    const parts = dateStr.split('-');
+    currentYear = parseInt(parts[0]);
+    currentMonth = parseInt(parts[1]) - 1;
+    renderCalendar();
+    loadDateAttendance(dateStr);
+}
+
 function loadDateAttendance(date) {
-    // Remove active from all days
+    currentDateIndex = attendanceDates.indexOf(date);
+
+    // Update active state on calendar
     document.querySelectorAll('.cal-day').forEach(d => d.classList.remove('active'));
-    // Add active to clicked
     document.querySelectorAll('.cal-day.has-data').forEach(d => {
         const dateStr = currentYear + '-' +
             String(currentMonth + 1).padStart(2, '0') + '-' +
@@ -131,6 +164,9 @@ function loadDateAttendance(date) {
     const detail = document.getElementById('historyDetail');
     detail.innerHTML = '<p class="history-hint">Loading...</p>';
 
+    const prevDisabled = currentDateIndex <= 0 ? ' disabled' : '';
+    const nextDisabled = currentDateIndex >= attendanceDates.length - 1 ? ' disabled' : '';
+
     fetch('/api/attendance/' + date)
         .then(r => r.json())
         .then(data => {
@@ -139,7 +175,12 @@ function loadDateAttendance(date) {
                 return;
             }
 
-            let html = '<h2>Attendance on ' + date + '</h2>';
+            let html = '<div class="history-day-nav">';
+            html += '<button class="day-nav-btn" onclick="navigateDay(-1)"' + prevDisabled + '>&larr; Prev Day</button>';
+            html += '<h2 style="margin:0;">Attendance on ' + date + '</h2>';
+            html += '<button class="day-nav-btn" onclick="navigateDay(1)"' + nextDisabled + '>Next Day &rarr;</button>';
+            html += '</div>';
+            html += '<div class="search-bar-wrapper"><input type="text" id="historySearchInput" class="search-input" placeholder="Search by name, roll no..." autocomplete="off"></div>';
             html += '<table><thead><tr>';
             html += '<th>Name</th><th>Roll No</th><th>Entry #</th><th>In Time</th><th>Out Time</th>';
             html += '</tr></thead><tbody>';
@@ -155,7 +196,21 @@ function loadDateAttendance(date) {
             });
 
             html += '</tbody></table>';
+            html += '<p class="no-results" id="historyNoResults" style="display:none;">No matching records found</p>';
             detail.innerHTML = html;
+
+            // Bind search filter
+            document.getElementById('historySearchInput').oninput = function() {
+                const q = this.value.toLowerCase();
+                const rows = detail.querySelectorAll('tbody tr');
+                let visible = 0;
+                rows.forEach(row => {
+                    const match = row.textContent.toLowerCase().includes(q);
+                    row.style.display = match ? '' : 'none';
+                    if (match) visible++;
+                });
+                document.getElementById('historyNoResults').style.display = visible === 0 ? '' : 'none';
+            };
         });
 }
 

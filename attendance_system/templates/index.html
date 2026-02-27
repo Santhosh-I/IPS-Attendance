@@ -18,21 +18,16 @@
     <h1 class="tap-title">RFID Attendance System</h1>
     <p class="tap-subtitle">Place your card on the reader</p>
     
-    <form method="POST">
-        <div class="input-wrapper">
-            <input type="text" name="rfid" id="rfidInput" autofocus placeholder="Tap Your Card" autocomplete="off">
-            <div class="input-glow"></div>
-        </div>
-    </form>
+    <div class="input-wrapper">
+        <input type="text" id="rfidInput" autofocus placeholder="Tap Your Card" autocomplete="off">
+        <div class="input-glow"></div>
+    </div>
 
-    {% if message %}
-        <div class="status-card {{ status }}">
-            <span class="status-icon">
-                {% if status == 'in' %}&#10003;{% elif status == 'out' %}&#10148;{% elif status == 'error' %}&#10007;{% endif %}
-            </span>
-            <span>{{ message }}</span>
-        </div>
-    {% endif %}
+    <!-- Instant popup -->
+    <div class="tap-popup" id="tapPopup">
+        <span class="tap-popup-icon" id="popupIcon"></span>
+        <span class="tap-popup-msg" id="popupMsg"></span>
+    </div>
 
     <div class="divider"></div>
 
@@ -53,12 +48,47 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Auto clear only when a status message is shown
-    {% if message %}
-    setTimeout(() => {
-        window.location.href = "/";
-    }, 3000);
-    {% endif %}
+    const rfidInput = document.getElementById('rfidInput');
+    const popup = document.getElementById('tapPopup');
+    const popupIcon = document.getElementById('popupIcon');
+    const popupMsg = document.getElementById('popupMsg');
+    let hideTimer = null;
+
+    // Keep input focused at all times
+    rfidInput.addEventListener('blur', () => setTimeout(() => rfidInput.focus(), 50));
+
+    rfidInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const uid = rfidInput.value.trim();
+            if (!uid) return;
+            rfidInput.value = '';
+            sendTap(uid);
+        }
+    });
+
+    function sendTap(uid) {
+        fetch('/api/tap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'rfid=' + encodeURIComponent(uid)
+        })
+        .then(r => r.json())
+        .then(data => showPopup(data.message, data.status))
+        .catch(() => showPopup('Connection error', 'error'));
+    }
+
+    function showPopup(message, status) {
+        if (hideTimer) clearTimeout(hideTimer);
+
+        popup.className = 'tap-popup show ' + status;
+        popupIcon.innerHTML = status === 'in' ? '&#10003;' : status === 'out' ? '&#10148;' : '&#10007;';
+        popupMsg.textContent = message;
+
+        hideTimer = setTimeout(() => {
+            popup.classList.remove('show');
+        }, 3000);
+    }
 </script>
 
 </body>

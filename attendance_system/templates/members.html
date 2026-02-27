@@ -19,8 +19,12 @@
         <a href="/download/members" class="download-btn">&#11015; Download Excel</a>
     </div>
 
+    <div class="search-bar-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by name, roll number, RFID..." autocomplete="off">
+    </div>
+
     {% if students %}
-    <table>
+    <table id="dataTable">
         <thead>
             <tr>
                 <th>Name</th>
@@ -45,10 +49,27 @@
             {% endfor %}
         </tbody>
     </table>
+    <p class="no-results" id="noResults" style="display:none;">No matching members found</p>
     {% else %}
     <p class="history-hint">No members registered yet</p>
     {% endif %}
 </div>
+
+<script>
+document.getElementById('searchInput').addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    const table = document.getElementById('dataTable');
+    if (!table) return;
+    const rows = table.querySelectorAll('tbody tr');
+    let visible = 0;
+    rows.forEach(row => {
+        const match = row.textContent.toLowerCase().includes(query);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    document.getElementById('noResults').style.display = visible === 0 ? '' : 'none';
+});
+</script>
 
 <footer class="footer">Developed by IPS Tech Community</footer>
 

@@ -18,11 +18,18 @@
     </div>
     <h1>Attendance Dashboard</h1>
 
-    <div style="text-align: right; margin-bottom: 20px; margin-top: -5px;">
+    <div class="today-count-section" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; margin-top: -5px;">
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; color: #999; letter-spacing: 0.3px;">
+            Members Today: <span style="color: #fff; font-weight: 600; font-size: 1.2rem; margin-left: 4px;">{{ today_count }}</span>
+        </div>
         <a href="/download/attendance" class="download-btn">&#11015; Download Excel</a>
     </div>
 
-    <table>
+    <div class="search-bar-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by name, date..." autocomplete="off">
+    </div>
+
+    <table id="dataTable">
         <thead>
             <tr>
                 <th>Name</th>
@@ -44,6 +51,7 @@
             {% endfor %}
         </tbody>
     </table>
+    <p class="no-results" id="noResults" style="display:none;">No matching records found</p>
 </div>
 
 <!-- Password Modal -->
@@ -96,6 +104,20 @@ function submitPassword() {
         }
     });
 }
+
+// Table search
+document.getElementById('searchInput').addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#dataTable tbody tr');
+    let visible = 0;
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const match = text.includes(query);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    document.getElementById('noResults').style.display = visible === 0 ? '' : 'none';
+});
 
 // Allow Enter key to submit
 document.addEventListener('keydown', function(e) {
