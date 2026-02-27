@@ -143,16 +143,17 @@ def dashboard():
     conn = get_db()
     cursor = conn.cursor()
 
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+
     cursor.execute('''
         SELECT students.name, attendance.date,
                attendance.entry_number, attendance.in_time, attendance.out_time
         FROM attendance
         JOIN students ON students.id = attendance.student_id
-        ORDER BY attendance.date DESC, attendance.id DESC
-    ''')
+        WHERE attendance.date = %s
+        ORDER BY attendance.id DESC
+    ''', (today,))
     records = cursor.fetchall()
-
-    today = datetime.now().strftime("%Y-%m-%d")
     cursor.execute('''
         SELECT COUNT(DISTINCT student_id) AS cnt FROM attendance WHERE date = %s
     ''', (today,))
