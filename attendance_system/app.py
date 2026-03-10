@@ -4,8 +4,12 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, date, time, timezone, timedelta
 import os
 import io
+import atexit
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import pytz
 
 # IST timezone (UTC+5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -207,6 +211,15 @@ def attendance_dates():
 
     conn.close()
     return jsonify([_date_str(d["date"]) for d in dates])
+
+@app.route("/trigger-notification/<secret>")
+def trigger_notification(secret):
+    """Manually fire the advisor notification check — for testing only."""
+    if secret != "ips@2026":
+        return "Unauthorized", 403
+    from advisor_notifier import run_notification_check
+    run_notification_check()
+    return "Notification check triggered. Check terminal for output and your inbox for emails.", 200
 
 @app.route("/verify-admin", methods=["POST"])
 def verify_admin():
@@ -423,6 +436,27 @@ def download_members():
         download_name='members.xlsx'
     )
 
+# -------------------------
+# Advisor Notification Scheduler
+# -------------------------
+def _start_advisor_scheduler():
+    try:
+        from advisor_notifier import run_notification_check
+        ist = pytz.timezone("Asia/Kolkata")
+        sched = BackgroundScheduler()
+        sched.add_job(run_notification_check, CronTrigger(hour=8,  minute=15, timezone=ist))
+        sched.add_job(run_notification_check, CronTrigger(hour=13, minute=15, timezone=ist))
+        sched.start()
+        atexit.register(lambda: sched.shutdown(wait=False))
+        print("[Scheduler] Advisor notifications scheduled at 08:15 and 13:15 IST.")
+    except Exception as e:
+        print(f"[Scheduler] Failed to start: {e}")
+
+# WERKZEUG_RUN_MAIN guard prevents double-start in Flask debug reloader.
+# On Render/gunicorn this env var is never set, so scheduler starts normally.
+if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    _start_advisor_scheduler()
+
 # Local testing
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

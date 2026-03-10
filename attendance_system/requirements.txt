@@ -2,3 +2,6 @@ flask
 psycopg2-binary
 gunicorn
 openpyxl
+schedule
+APScheduler
+pytz

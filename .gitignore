@@ -1,3 +1,4 @@
 attendance_system/credentials.json
 attendance_system/rfid-attendance-488405-0309deea4ba6.json
 *.db
+/venv
