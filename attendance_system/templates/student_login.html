@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Login — IPS Attendance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="add-member-body">
+
+<div class="add-member-container">
+    <img src="{{ url_for('static', filename='images/ips-logo.png') }}" alt="IPS Logo" style="width:80px;margin-bottom:12px;">
+    <h1 style="margin-bottom:6px;">Student Portal</h1>
+    <p style="color:#888;font-size:14px;margin-bottom:28px;">Login to view your attendance</p>
+
+    <form method="POST">
+        <input type="text" name="roll_number" placeholder="Roll Number (e.g. 24UAD149)" required autocomplete="off">
+        <input type="password" name="pin" placeholder="PIN" required autocomplete="off">
+        <button type="submit">Login</button>
+    </form>
+
+    {% if error %}
+    <div class="status error" style="margin-top:16px;">{{ error }}</div>
+    {% endif %}
+</div>
+
+<footer class="footer">Developed by IPS Tech Community</footer>
+</body>
+</html>

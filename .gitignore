@@ -1,4 +1,24 @@
+# Secrets / credentials
 attendance_system/credentials.json
 attendance_system/rfid-attendance-488405-0309deea4ba6.json
+
+# Database files
 *.db
-/venv
+
+# Virtual environment
+venv/
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variable files
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db

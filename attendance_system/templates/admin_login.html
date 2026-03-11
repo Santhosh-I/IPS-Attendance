@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login — IPS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="add-member-body">
+
+<a href="/dashboard" class="back-btn back-btn-top">&larr; Back</a>
+
+<div class="add-member-container">
+    <h1>Admin Login</h1>
+    <p style="color:#888;font-size:14px;margin-bottom:24px;">Enter admin password to manage student PINs</p>
+
+    <form method="POST">
+        <input type="password" name="password" placeholder="Admin Password" required autocomplete="off">
+        <button type="submit">Login</button>
+    </form>
+
+    {% if error %}
+    <div class="status error" style="margin-top:16px;">{{ error }}</div>
+    {% endif %}
+</div>
+
+<footer class="footer">Developed by IPS Tech Community</footer>
+</body>
+</html>

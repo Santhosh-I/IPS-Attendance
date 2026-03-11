@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, session
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, date, time, timezone, timedelta
 import os
 import io
 import atexit
+import hashlib
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -15,6 +16,7 @@ import pytz
 IST = timezone(timedelta(hours=5, minutes=30))
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "ips-tech-secret-2026")
 
 DATABASE_URL = "postgresql://postgres.xuirqkdtrvkhjirrnmla:ipsattendance0000830245@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
 
@@ -79,6 +81,25 @@ def init_db():
             in_time TIME,
             out_time TIME,
             entry_number INTEGER DEFAULT 1
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS student_pins (
+            id SERIAL PRIMARY KEY,
+            roll_number TEXT UNIQUE NOT NULL,
+            pin_hash TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS student_status (
+            id SERIAL PRIMARY KEY,
+            student_name TEXT NOT NULL,
+            date DATE NOT NULL,
+            status TEXT NOT NULL,
+            reason TEXT DEFAULT '',
+            UNIQUE(student_name, date)
         )
     ''')
 
@@ -304,6 +325,187 @@ def delete_member(id):
     conn.commit()
     conn.close()
     return redirect("/members")
+
+# -------------------------
+# Student Portal
+# -------------------------
+def _hash_pin(pin: str) -> str:
+    return hashlib.sha256(pin.strip().encode()).hexdigest()
+
+@app.route("/student-login", methods=["GET", "POST"])
+def student_login():
+    error = ""
+    if request.method == "POST":
+        roll_number = request.form.get("roll_number", "").strip()
+        pin = request.form.get("pin", "").strip()
+
+        if not roll_number or not pin:
+            error = "Please enter your roll number and PIN."
+        else:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM student_pins WHERE roll_number = %s",
+                (roll_number,)
+            )
+            record = cursor.fetchone()
+            conn.close()
+
+            if not record:
+                error = "Roll number not found. Contact your admin to set up a PIN."
+            elif record["pin_hash"] != _hash_pin(pin):
+                error = "Incorrect PIN. Please try again."
+            else:
+                session["student_roll"] = roll_number
+                return redirect("/student-portal")
+
+    return render_template("student_login.html", error=error)
+
+@app.route("/student-portal")
+def student_portal():
+    if "student_roll" not in session:
+        return redirect("/student-login")
+
+    roll_number = session["student_roll"]
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM students WHERE roll_number = %s", (roll_number,))
+    student = cursor.fetchone()
+
+    if not student:
+        session.pop("student_roll", None)
+        return redirect("/student-login")
+
+    cursor.execute('''
+        SELECT date, entry_number, in_time, out_time
+        FROM attendance
+        WHERE student_id = %s
+        ORDER BY date DESC, entry_number ASC
+    ''', (student["id"],))
+    records = cursor.fetchall()
+
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    cursor.execute(
+        "SELECT status, reason FROM student_status WHERE student_name = %s AND date = %s",
+        (student["name"], today)
+    )
+    today_status = cursor.fetchone()
+    conn.close()
+
+    total_days = len({r["date"] for r in records})
+
+    return render_template(
+        "student_portal.html",
+        student=student,
+        records=records,
+        total_days=total_days,
+        today=today,
+        today_status=today_status,
+    )
+
+@app.route("/student-logout")
+def student_logout():
+    session.pop("student_roll", None)
+    return redirect("/student-login")
+
+@app.route("/student/mark-status", methods=["POST"])
+def student_mark_status():
+    if "student_roll" not in session:
+        return redirect("/student-login")
+
+    roll_number = session["student_roll"]
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM students WHERE roll_number = %s", (roll_number,))
+    student = cursor.fetchone()
+
+    if not student:
+        conn.close()
+        return redirect("/student-login")
+
+    status = request.form.get("status", "").strip().upper()
+    reason = request.form.get("reason", "").strip()
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+
+    if status == "CLEAR":
+        cursor.execute(
+            "DELETE FROM student_status WHERE student_name = %s AND date = %s",
+            (student["name"], today),
+        )
+        conn.commit()
+    elif status in ("OD", "SOI", "ABSENT"):
+        cursor.execute(
+            """
+            INSERT INTO student_status (student_name, date, status, reason)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (student_name, date) DO UPDATE
+            SET status = EXCLUDED.status, reason = EXCLUDED.reason
+            """,
+            (student["name"], today, status, reason),
+        )
+        conn.commit()
+    conn.close()
+    return redirect("/student-portal")
+
+# Admin: set or reset a student's PIN
+@app.route("/admin/set-pin", methods=["GET", "POST"])
+def admin_set_pin():
+    # Require admin session or password check
+    if not session.get("admin_auth"):
+        return redirect("/admin-login")
+
+    message = ""
+    status_cls = ""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, roll_number FROM students WHERE roll_number IS NOT NULL AND roll_number != '' ORDER BY name")
+    students = cursor.fetchall()
+    conn.close()
+
+    if request.method == "POST":
+        roll_number = request.form.get("roll_number", "").strip()
+        new_pin = request.form.get("pin", "").strip()
+
+        if not roll_number or not new_pin:
+            message = "Please fill in all fields."
+            status_cls = "error"
+        elif len(new_pin) < 4:
+            message = "PIN must be at least 4 digits."
+            status_cls = "error"
+        else:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO student_pins (roll_number, pin_hash)
+                VALUES (%s, %s)
+                ON CONFLICT (roll_number) DO UPDATE SET pin_hash = EXCLUDED.pin_hash
+                """,
+                (roll_number, _hash_pin(new_pin)),
+            )
+            conn.commit()
+            conn.close()
+            message = f"PIN set successfully for {roll_number}."
+            status_cls = "in"
+
+    return render_template("admin_set_pin.html", students=students, message=message, status_cls=status_cls)
+
+@app.route("/admin-login", methods=["GET", "POST"])
+def admin_login():
+    error = ""
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if password == "ips@2026":
+            session["admin_auth"] = True
+            return redirect("/admin/set-pin")
+        error = "Wrong password."
+    return render_template("admin_login.html", error=error)
+
+@app.route("/admin-logout")
+def admin_logout():
+    session.pop("admin_auth", None)
+    return redirect("/")
 
 # -------------------------
 # Excel Download Routes

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Attendance — IPS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <div></div>
+        <h1 style="margin:0;font-size:22px;">My Attendance</h1>
+        <a href="/student-logout" class="back-btn" style="color:#ff6b7a;">Logout</a>
+    </div>
+
+    <!-- Student Info Card -->
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+            <div style="font-size:20px;font-weight:600;color:#fff;">{{ student.name }}</div>
+            <div style="font-size:13px;color:#888;margin-top:4px;">Roll No: {{ student.roll_number or '—' }}</div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:28px;font-weight:700;color:#5cadff;">{{ total_days }}</div>
+            <div style="font-size:12px;color:#888;">Days Present</div>
+        </div>
+    </div>
+
+    <!-- Today's Status Section -->
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+        <div style="font-size:14px;font-weight:600;color:#aaa;margin-bottom:14px;">TODAY'S STATUS — {{ today }}</div>
+
+        {% if today_status %}
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="
+                    padding:8px 18px;border-radius:8px;font-weight:600;font-size:14px;
+                    {% if today_status.status == 'OD' %}background:rgba(240,165,0,0.15);color:#f0a500;border:1px solid rgba(240,165,0,0.3);
+                    {% elif today_status.status == 'SOI' %}background:rgba(92,173,255,0.15);color:#5cadff;border:1px solid rgba(92,173,255,0.3);
+                    {% else %}background:rgba(255,107,122,0.15);color:#ff6b7a;border:1px solid rgba(255,107,122,0.3);{% endif %}
+                ">
+                    {% if today_status.status == 'OD' %}On Duty (OD)
+                    {% elif today_status.status == 'SOI' %}SOI
+                    {% else %}Absent{% endif %}
+                </span>
+                {% if today_status.reason %}
+                <span style="color:#888;font-size:13px;">Reason: {{ today_status.reason }}</span>
+                {% endif %}
+                <form method="POST" action="/student/mark-status" style="display:inline;">
+                    <input type="hidden" name="status" value="CLEAR">
+                    <button type="submit" onclick="this.form.querySelector('[name=status]').value='CLEAR'" style="background:none;border:1px solid rgba(255,255,255,0.1);color:#666;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;">Clear</button>
+                </form>
+            </div>
+        {% else %}
+            <p style="color:#666;font-size:13px;margin:0 0 14px;">Not marked yet today. If you cannot tap your card, mark your status below.</p>
+            <form method="POST" action="/student/mark-status" id="statusForm">
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                    <button type="button" onclick="selectStatus('OD')"   id="btn-OD"     class="status-btn-od">On Duty (OD)</button>
+                    <button type="button" onclick="selectStatus('SOI')"  id="btn-SOI"    class="status-btn-soi">SOI</button>
+                    <button type="button" onclick="selectStatus('ABSENT')" id="btn-ABSENT" class="status-btn-absent">Absent</button>
+                </div>
+                <div id="reasonBox" style="display:none;margin-bottom:12px;">
+                    <input type="text" name="reason" id="reasonInput" placeholder="Reason (required)" autocomplete="off"
+                        style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#fff;font-size:14px;box-sizing:border-box;">
+                </div>
+                <input type="hidden" name="status" id="selectedStatus" value="">
+                <button type="submit" id="submitBtn" style="display:none;padding:10px 28px;background:#5cadff;color:#000;font-weight:600;border:none;border-radius:8px;cursor:pointer;font-size:14px;">Submit</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <!-- Attendance History -->
+    <div style="font-size:13px;font-weight:600;color:#aaa;margin-bottom:10px;letter-spacing:0.5px;">ATTENDANCE HISTORY</div>
+
+    <div class="search-bar-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by date..." autocomplete="off">
+    </div>
+
+    {% if records %}
+    <table id="dataTable">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Entry #</th>
+                <th>In Time</th>
+                <th>Out Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in records %}
+            <tr>
+                <td>{{ r.date }}</td>
+                <td>{{ r.entry_number }}</td>
+                <td>{{ r.in_time | to12hr }}</td>
+                <td>{{ r.out_time | to12hr }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="no-results" id="noResults" style="display:none;">No matching records found</p>
+    {% else %}
+    <p class="history-hint">No attendance records found yet.</p>
+    {% endif %}
+</div>
+
+<style>
+.status-btn-od, .status-btn-soi, .status-btn-absent {
+    padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; border: 2px solid transparent; transition: all 0.2s;
+}
+.status-btn-od     { background: rgba(240,165,0,0.1);   color: #f0a500; border-color: rgba(240,165,0,0.3); }
+.status-btn-soi    { background: rgba(92,173,255,0.1);  color: #5cadff; border-color: rgba(92,173,255,0.3); }
+.status-btn-absent { background: rgba(255,107,122,0.1); color: #ff6b7a; border-color: rgba(255,107,122,0.3); }
+.status-btn-od.active     { background: rgba(240,165,0,0.3);   border-color: #f0a500; }
+.status-btn-soi.active    { background: rgba(92,173,255,0.3);  border-color: #5cadff; }
+.status-btn-absent.active { background: rgba(255,107,122,0.3); border-color: #ff6b7a; }
+</style>
+
+<script>
+function selectStatus(val) {
+    document.getElementById('selectedStatus').value = val;
+    ['OD','SOI','ABSENT'].forEach(s => document.getElementById('btn-'+s).classList.remove('active'));
+    document.getElementById('btn-'+val).classList.add('active');
+    document.getElementById('reasonBox').style.display = 'block';
+    document.getElementById('reasonInput').focus();
+    document.getElementById('submitBtn').style.display = 'inline-block';
+}
+
+document.getElementById('statusForm') && document.getElementById('statusForm').addEventListener('submit', function(e) {
+    const status = document.getElementById('selectedStatus').value;
+    const reason = document.getElementById('reasonInput').value.trim();
+    if (!status) { e.preventDefault(); alert('Please select a status first.'); return; }
+    if (!reason) { e.preventDefault(); document.getElementById('reasonInput').focus(); alert('Please enter a reason.'); return; }
+});
+
+document.getElementById('searchInput') && document.getElementById('searchInput').addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#dataTable tbody tr');
+    let visible = 0;
+    rows.forEach(row => {
+        const match = row.textContent.toLowerCase().includes(query);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    document.getElementById('noResults').style.display = visible === 0 ? '' : 'none';
+});
+</script>
+
+<footer class="footer">Developed by IPS Tech Community</footer>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Student PIN — Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <a href="/dashboard" class="back-btn">&larr; Back</a>
+        <h1 style="margin:0;font-size:22px;">Set Student PINs</h1>
+        <a href="/admin-logout" style="color:#ff6b7a;font-size:13px;text-decoration:none;">Logout</a>
+    </div>
+
+    <p style="color:#888;font-size:14px;margin-bottom:20px;">Set or reset a student's portal PIN. The student uses their Roll Number + PIN to log in.</p>
+
+    <form method="POST" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:28px;">
+        <div style="flex:1;min-width:200px;">
+            <label style="font-size:13px;color:#aaa;display:block;margin-bottom:6px;">Student</label>
+            <select name="roll_number" required style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#fff;font-size:14px;">
+                <option value="">-- Select Student --</option>
+                {% for s in students %}
+                <option value="{{ s.roll_number }}">{{ s.name }} ({{ s.roll_number }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label style="font-size:13px;color:#aaa;display:block;margin-bottom:6px;">New PIN (min 4 digits)</label>
+            <input type="text" name="pin" placeholder="e.g. 1234" maxlength="10" required
+                style="padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#fff;font-size:14px;width:140px;">
+        </div>
+        <button type="submit" class="modal-btn submit" style="padding:10px 24px;">Set PIN</button>
+    </form>
+
+    {% if message %}
+    <div class="status {{ status_cls }}" style="margin-bottom:16px;">{{ message }}</div>
+    {% endif %}
+
+    <p style="color:#666;font-size:12px;margin-top:12px;">
+        Students log in at: <strong style="color:#5cadff;">/student-login</strong>
+    </p>
+</div>
+<footer class="footer">Developed by IPS Tech Community</footer>
+</body>
+</html>
