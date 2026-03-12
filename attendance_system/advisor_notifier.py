@@ -40,6 +40,10 @@ DATABASE_URL = os.environ.get(
 
 TEST_EMAIL = "tayanithaans2196@gmail.com"  # ← change to real advisor emails when going live
 
+# Head / coordinator who receives the all-department summary email
+HEAD_EMAIL = os.environ.get("HEAD_EMAIL", TEST_EMAIL)  # ← set HEAD_EMAIL env var in production
+HEAD_NAME  = "IPS Tech Community Head"
+
 MONITORED_MEMBERS = [
     # ----- AI & DS - A (Advisor: Saranya U) -----
     {"name": "Kavinila L",          "roll_number": "24UAD149", "department": "AI&DS-A",      "advisor": "Saranya U",       "advisor_email": TEST_EMAIL},
@@ -108,18 +112,26 @@ def get_student_categories(today_str: str) -> dict:
     self_reported = {row["student_name"]: row for row in cursor.fetchall()}
     conn.close()
 
-    categories = {"present": [], "od": [], "soi": [], "absent": []}
+    categories = {"present": [], "od": [], "absent": []}
     for m in MONITORED_MEMBERS:
         name = m["name"]
-        entry = {"name": name, "roll_number": m.get("roll_number", ""), "reason": ""}
+        entry = {"name": name, "roll_number": m.get("roll_number", ""), "reason": "", "soi": False}
         if name in self_reported:
             sr = self_reported[name]
             entry["reason"] = sr["reason"] or ""
-            key = sr["status"].lower() if sr["status"] in ("OD", "SOI", "ABSENT") else "absent"
-            categories[key].append({**m, **entry})
+            if sr["status"] == "OD":
+                categories["od"].append({**m, **entry})
+            elif sr["status"] == "SOI":
+                # SOI counts as present — flag it so email can note it
+                entry["soi"] = True
+                categories["present"].append({**m, **entry})
+            else:  # ABSENT
+                categories["absent"].append({**m, **entry})
         elif name in present_names:
             categories["present"].append({**m, **entry})
-        # else: not present and not self-reported — omit from email
+        else:
+            # No RFID tap and no self-report — mark as absent
+            categories["absent"].append({**m, **entry})
 
     return categories
 
@@ -133,7 +145,7 @@ def group_by_advisor_categorised(categories: dict) -> dict:
     """
     grouped = defaultdict(lambda: {
         "advisor": "", "department": "", "email": "",
-        "present": [], "od": [], "soi": [], "absent": [],
+        "present": [], "od": [], "absent": [],
     })
     for cat_key, members in categories.items():
         for m in members:
@@ -145,6 +157,7 @@ def group_by_advisor_categorised(categories: dict) -> dict:
                 "name": m["name"],
                 "roll_number": m.get("roll_number", ""),
                 "reason": m.get("reason", ""),
+                "soi": m.get("soi", False),
             })
     return grouped
 
@@ -161,11 +174,13 @@ def group_by_advisor(members: list[dict]) -> dict:
     return grouped
 
 
-def _fmt_student_list(students: list[dict], show_reason: bool = False) -> str:
+def _fmt_student_list(students: list[dict], show_reason: bool = False, show_soi: bool = False) -> str:
     lines = []
     for i, s in enumerate(students, 1):
         roll = s["roll_number"] or "N/A"
         line = f"  {i}. {s['name']}  (Roll No: {roll})"
+        if show_soi and s.get("soi"):
+            line += "  [SOI]"
         if show_reason and s.get("reason"):
             line += f"  — {s['reason']}"
         lines.append(line)
@@ -178,7 +193,7 @@ def build_email_body(advisor_name: str, department: str, students: list[dict], t
         advisor_name=advisor_name,
         department=department,
         present=students,
-        od=[], soi=[], absent=[],
+        od=[], absent=[],
         today_str=today_str,
         check_time=check_time,
     )
@@ -189,41 +204,80 @@ def build_categorised_email_body(
     department: str,
     present: list[dict],
     od: list[dict],
-    soi: list[dict],
     absent: list[dict],
     today_str: str,
     check_time: str,
 ) -> str:
-    """Build a categorised email body with Present / OD / SOI / Absent sections."""
-    total = len(present) + len(od) + len(soi) + len(absent)
+    """Build email with 3 sections: Present (incl. SOI), On Duty (OD), Absent."""
+    total = len(present) + len(od) + len(absent)
     sections = []
 
-    if present:
-        sections.append(
-            f"PRESENT ({len(present)}) — tapped RFID:\n{_fmt_student_list(present)}"
-        )
-    if od:
-        sections.append(
-            f"ON DUTY — OD ({len(od)}) — self-reported:\n{_fmt_student_list(od, show_reason=True)}"
-        )
-    if soi:
-        sections.append(
-            f"SOI ({len(soi)}) — self-reported:\n{_fmt_student_list(soi, show_reason=True)}"
-        )
-    if absent:
-        sections.append(
-            f"ABSENT ({len(absent)}) — self-reported:\n{_fmt_student_list(absent, show_reason=True)}"
-        )
+    sections.append(
+        f"PRESENT ({len(present)}):\n{_fmt_student_list(present, show_soi=True)}"
+    )
+    sections.append(
+        f"ON DUTY — OD ({len(od)}):\n{_fmt_student_list(od, show_reason=True)}"
+    )
+    sections.append(
+        f"ABSENT ({len(absent)}):\n{_fmt_student_list(absent, show_reason=True)}"
+    )
 
     body_content = "\n\n".join(sections)
+    soi_note = "  * [SOI] = Student on SOI duty (counted as Present)\n" if any(s.get("soi") for s in present) else ""
 
     return (
         f"Dear {advisor_name},\n\n"
-        f"The following IPS Tech Community 2nd-year student(s) from the "
-        f"{department} department have activity recorded today "
-        f"({today_str}, checked at {check_time} IST):\n\n"
+        f"IPS Tech Community 2nd-year attendance update for {department} department\n"
+        f"Date: {today_str}  |  Checked at: {check_time} IST\n\n"
         f"{body_content}\n\n"
-        f"Total accounted: {total}\n\n"
+        f"{soi_note}"
+        f"Total members: {total}\n\n"
+        f"Regards,\n"
+        f"IPS Attendance System\n\n"
+        f"---\n"
+        f"NOTE: This is a system-generated automatic message. "
+        f"Please do not reply to this email."
+    )
+
+
+def build_head_summary_body(categories: dict, today_str: str, check_time: str) -> str:
+    """Build a single all-department summary email for the head/coordinator."""
+    present = categories["present"]
+    od      = categories["od"]
+    absent  = categories["absent"]
+    total   = len(present) + len(od) + len(absent)
+
+    def dept_fmt(members, show_reason=False, show_soi=False):
+        # Group by department for the summary
+        by_dept = defaultdict(list)
+        for m in members:
+            by_dept[m["department"]].append(m)
+        lines = []
+        for dept in sorted(by_dept):
+            lines.append(f"  [{dept}]")
+            for m in by_dept[dept]:
+                roll = m.get("roll_number") or "N/A"
+                line = f"    • {m['name']}  (Roll No: {roll})"
+                if show_soi and m.get("soi"):
+                    line += "  [SOI]"
+                if show_reason and m.get("reason"):
+                    line += f"  — {m['reason']}"
+                lines.append(line)
+        return "\n".join(lines) if lines else "    (none)"
+
+    soi_note = "  * [SOI] = Student on SOI duty (counted as Present)\n" if any(s.get("soi") for s in present) else ""
+
+    return (
+        f"Dear {HEAD_NAME},\n\n"
+        f"IPS Tech Community — Daily Attendance Summary\n"
+        f"Date: {today_str}  |  Checked at: {check_time} IST\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"  PRESENT : {len(present):>3}  |  ON DUTY (OD) : {len(od):>3}  |  ABSENT : {len(absent):>3}  |  TOTAL : {total:>3}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"PRESENT ({len(present)}):\n{dept_fmt(present, show_soi=True)}\n\n"
+        f"ON DUTY — OD ({len(od)}):\n{dept_fmt(od, show_reason=True)}\n\n"
+        f"ABSENT ({len(absent)}):\n{dept_fmt(absent, show_reason=True)}\n\n"
+        f"{soi_note}"
         f"Regards,\n"
         f"IPS Attendance System\n\n"
         f"---\n"
@@ -275,7 +329,7 @@ def run_notification_check():
     grouped = group_by_advisor_categorised(categories)
 
     for _, info in grouped.items():
-        dept_total = sum(len(info[k]) for k in ("present", "od", "soi", "absent"))
+        dept_total = sum(len(info[k]) for k in ("present", "od", "absent"))
         if dept_total == 0:
             continue
         subject = (
@@ -286,7 +340,6 @@ def run_notification_check():
             department=info["department"],
             present=info["present"],
             od=info["od"],
-            soi=info["soi"],
             absent=info["absent"],
             today_str=today_str,
             check_time=check_time,
@@ -296,7 +349,15 @@ def run_notification_check():
         except Exception as e:
             print(f"[ERROR] Failed to send email to {info['email']}: {e}")
 
-    print(f"  Done. Notified {len(grouped)} advisor(s). {total_any} student(s) with activity.")
+    # Send the head summary email
+    try:
+        head_subject = f"IPS Attendance — Full Summary ({today_str}, {check_time} IST)"
+        head_body = build_head_summary_body(categories, today_str, check_time)
+        send_email(HEAD_EMAIL, head_subject, head_body)
+    except Exception as e:
+        print(f"[ERROR] Failed to send head summary to {HEAD_EMAIL}: {e}")
+
+    print(f"  Done. Notified {len(grouped)} advisor(s) + head summary sent. {total_any} student(s) accounted.")
 
 
 def run_test_email():
